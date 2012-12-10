@@ -1,0 +1,5 @@
+ACLOCAL_AMFLAGS = $$ACLOCAL_ARGS
+SUBDIRS = src
+
+README: README.md
+	cp $< $@
