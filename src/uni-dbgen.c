@@ -128,7 +128,7 @@ make_part(void)
     char type[64];
     int size;
     char container[64];
-    long retailprice;
+    double retailprice;
     const char *comment = "CONSTANT LENGTH";
 
     srand48(0);
@@ -167,10 +167,10 @@ make_part(void)
                 p_container_syll2[rand_within_int(0, 7)]);
 
         /* Generate P_RETAILPRICE */
-        retailprice = (90000 + ((partkey / 10) % 20001) + 100 * (partkey % 1000)) / 100;
+        retailprice = (90000 + ((partkey / 10) % 20001) + 100 * (partkey % 1000)) / 100.0;
 
         fprintf(part_file,
-                "%ld|%s|%s|%s|%s|%d|%s|%ld|%s\n",
+                "%ld|%s|%s|%s|%s|%d|%s|%lf|%s\n",
                 partkey, name, mfgr, brand, type, size, container, retailprice, comment);
     }
 }
@@ -235,6 +235,12 @@ swap(long *val1, long *val2)
 static char *o_orderpriority_bag[] = {
     "1-URGENT", "2-HIGH__", "3-MEDIUM", "4-NOT___", "5-LOW___"
 };
+static char *l_shipinstruct_bag[] = {
+    "DELIVER IN PERSON", "COLLECT COD______", "NONE_____________", "TAKE BACK RETURN_"
+};
+static char *l_shipmode_bag[] = {
+    "REG AIR", "AIR____", "RAIL___", "SHIP___", "TRUCK__", "MAIL___", "FOB____"
+};
 
 static void
 make_orders_lineitem(void)
@@ -293,7 +299,74 @@ make_orders_lineitem(void)
 
         for (i = 0; i < 4; i++)
         {
-            
+            long partkey;
+            long suppkey;
+            int linenumber;
+            int quantity;
+            double extendedprice;
+            double discount;
+            double tax;
+            char returnflag = 'N'; /* FIXME */
+            char linestatus = 'O'; /* FIXME */
+            time_t shipdate_epoch;
+            struct tm shipdate_tm;
+            char shipdate[64];
+            time_t commitdate_epoch;
+            struct tm commitdate_tm;
+            char commitdate[64];
+            time_t receiptdate_epoch;
+            struct tm receiptdate_tm;
+            char receiptdate[64];
+            const char *shipinstruct;
+            const char *shipmode;
+            const char *comment = "NO COMMENT! NO COMMENT! ";
+
+            /* L_PARTKEY */
+            partkey = rand_within_long(1, option.scalefactor * 200000);
+
+            /* L_SUPPKEY */
+            suppkey = 1;        /* FIXME */
+
+            /* L_LINENUMBER */
+            linenumber = i;
+
+            /* L_QUANTITY */
+            quantity = rand_within_int(1, 50);
+
+            /* L_EXTENDEDPRICE */
+            extendedprice = ((90000 + ((partkey / 10) % 20001) + 100 * (partkey % 1000)) / 100.0) * quantity;
+
+            /* L_DISCOUNT */
+            discount = rand_within_double(0.0, 0.1);
+
+            /* L_TAX */
+            tax = rand_within_double(0.0, 0.08);
+
+            /* L_SHIPDATE */
+            shipdate_epoch = orderdate_epoch + rand_within_int(1, 121) * 24 * 3600;
+            localtime_r(&shipdate_epoch, &shipdate_tm);
+            strftime(shipdate, 63, "%Y-%m-%d", &shipdate_tm);
+
+            /* L_COMMITDATE */
+            commitdate_epoch = orderdate_epoch + rand_within_int(30, 90) * 24 * 3600;
+            localtime_r(&commitdate_epoch, &commitdate_tm);
+            strftime(commitdate, 63, "%Y-%m-%d", &commitdate_tm);
+
+            /* L_RECEIPTDATE */
+            receiptdate_epoch = orderdate_epoch + rand_within_int(1, 121) * 24 * 3600;
+            localtime_r(&receiptdate_epoch, &receiptdate_tm);
+            strftime(receiptdate, 63, "%Y-%m-%d", &receiptdate_tm);
+
+            /* L_SHIPINSTRUCT */
+            shipinstruct = l_shipinstruct_bag[rand_within_int(0, 3)];
+
+            /* L_SHIPMODE */
+            shipmode = l_shipmode_bag[rand_within_int(0, 6)];
+
+            fprintf(lineitem_file, "%ld|%ld|%ld|%d|%d|%.2lf|%.2lf|%.2lf|%c|%c|%s|%s|%s|%s|%s|%s\n",
+                    orderkey, partkey, suppkey, linenumber, quantity, extendedprice, discount,
+                    tax, returnflag, linestatus, shipdate, commitdate, receiptdate,
+                    shipinstruct, shipmode, comment);
         }
 
         fprintf(orders_file, "%ld|%ld|%c|%lf|%s|%s|%s|%d|%s\n",
