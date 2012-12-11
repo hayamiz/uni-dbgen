@@ -81,37 +81,50 @@ rand_within_long(long from, long to)
     return from + (long)((to - from + 1) * drand48());
 }
 
+static double
+rand_within_double(double from, double to)
+{
+    return from + ((to - from) * drand48());
+}
+
 
 static const char *p_name_bag[] = {
-    "almond", "antique", "aquamarine", "azure",
-    "beige", "bisque", "black", "blanched", "blue", "blush", "brown", "burlywood", "burnished",
-    "chartreuse", "chiffon", "chocolate", "coral", "cornflower", "cornsilk", "cream", "cyan",
-    "dark", "deep", "dim", "dodger", "drab", "firebrick", "floral", "forest", "frosted",
-    "gainsboro", "ghost", "goldenrod", "green", "grey", "honeydew", "hot", "indian", "ivory", "khaki",
-    "lace", "lavender", "lawn", "lemon", "light", "lime", "linen",
-    "magenta", "maroon", "medium", "metallic", "midnight", "mint", "misty", "moccasin",
-    "navajo", "navy", "olive", "orange", "orchid",
-    "pale", "papaya", "peach", "peru", "pink", "plum", "powder", "puff", "purple",
-    "red", "rose", "rosy", "royal",
-    "saddle", "salmon", "sandy", "seashell", "sienna", "sky", "slate", "smoke", "snow", "spring", "steel",
-    "tan", "thistle", "tomato", "turquoise", "violet", "wheat", "white", "yellow"};
+    "almond____", "antique___", "aquamarine", "azure_____", "beige_____",
+    "bisque____", "black_____", "blanched__", "blue______", "blush_____",
+    "brown_____", "burlywood_", "burnished_", "chartreuse", "chiffon___",
+    "chocolate_", "coral_____", "cornflower", "cornsilk__", "cream_____",
+    "cyan______", "dark______", "deep______", "dim_______", "dodger____",
+    "drab______", "firebrick_", "floral____", "forest____", "frosted___",
+    "gainsboro_", "ghost_____", "goldenrod_", "green_____", "grey______",
+    "honeydew__", "hot_______", "indian____", "ivory_____", "khaki_____",
+    "lace______", "lavender__", "lawn______", "lemon_____", "light_____",
+    "lime______", "linen_____", "magenta___", "maroon____", "medium____",
+    "metallic__", "midnight__", "mint______", "misty_____", "moccasin__",
+    "navajo____", "navy______", "olive_____", "orange____", "orchid____",
+    "pale______", "papaya____", "peach_____", "peru______", "pink______",
+    "plum______", "powder____", "puff______", "purple____", "red_______",
+    "rose______", "rosy______", "royal_____", "saddle____", "salmon____",
+    "sandy_____", "seashell__", "sienna____", "sky_______", "slate_____",
+    "smoke_____", "snow______", "spring____", "steel_____", "tan_______",
+    "thistle___", "tomato____", "turquoise_", "violet____", "wheat_____",
+    "white_____", "yellow____"};
 static const int p_name_bag_size = 92;
 
 static const char *p_type_syll1[] = {
-    "STANDARD", "SMALL", "MEDIUM", "LARGE", "ECONOMY", "PROMO"
+    "STANDARD", "SMALL___", "MEDIUM__", "LARGE___", "ECONOMY_", "PROMO___"
 };
 static const char *p_type_syll2[] = {
-    "ANODIZED", "BURNISHED", "PLATED", "POLISHED", "BRUSHED"
+    "ANODIZED_", "BURNISHED", "PLATED___", "POLISHED_", "BRUSHED__"
 };
 static const char *p_type_syll3[] = {
-    "TIN", "NICKEL", "BRASS", "STEEL", "COPPER"
+    "TIN___", "NICKEL", "BRASS_", "STEEL_", "COPPER"
 };
 
 static const char *p_container_syll1[] = {
-    "SM", "LG", "MED", "JUMBO", "WRAP"
+    "SM___", "LG___", "MED__", "JUMBO", "WRAP_"
 };
 static const char *p_container_syll2[] = {
-    "CASE", "BOX", "BAG", "JAR", "PKG", "PACK", "CAN", "DRUM"
+    "CASE", "BOX_", "BAG_", "JAR_", "PKG_", "PACK", "CAN_", "DRUM"
 };
 
 static void *
@@ -125,7 +138,7 @@ part_thread_handler(void *arg)
     int size;
     char container[64];
     long retailprice;
-    char comment[23];
+    const char *comment = "CONSTANT LENGTH";
 
     srand48(0);
 
@@ -134,6 +147,7 @@ part_thread_handler(void *arg)
         int M;
 
         /* Generate P_NAME */
+        /* TODO: uniquely random generation */
         sprintf(name, "%s %s %s %s %s",
                 p_name_bag[rand_within_int(0, p_name_bag_size - 1)],
                 p_name_bag[rand_within_int(0, p_name_bag_size - 1)],
@@ -164,14 +178,6 @@ part_thread_handler(void *arg)
         /* Generate P_RETAILPRICE */
         retailprice = (90000 + ((partkey / 10) % 20001) + 100 * (partkey % 1000)) / 100;
 
-        /* Generate P_COMMENT */
-        bzero(comment, sizeof(char) * 23);
-        {
-            int i;
-            int comment_len = rand_within_int(5, 22);
-            for (i = 0; i < comment_len; i++) comment[i] = 'X';
-        }
-
         fprintf(part_file,
                 "%ld|%s|%s|%s|%s|%d|%s|%ld|%s\n",
                 partkey, name, mfgr, brand, type, size, container, retailprice, comment);
@@ -180,9 +186,52 @@ part_thread_handler(void *arg)
     return NULL;
 }
 
+
+static char *c_mktsegment_bag[] = {
+    "AUTOMOBILE", "BUILDING__", "FURNITURE_", "MACHINERY_", "HOUSHOLD__"
+};
+
 static void *
 cust_thread_handler(void *arg)
 {
+    long custkey;
+    long nr_customer = 150000 * option.scalefactor;
+    cust_thread_t *cust_thread = (cust_thread_t *) arg;
+
+    char name[64];
+    const char *address = "CONSTANT ADDRESS _____________";
+    int nationkey;
+    char phone[64];
+    double acctbal;
+    const char *mktsegment;
+    const char *comment = "NO COMMENT! NO COMMENT! NO COMMENT! NO COMMENT! NO COMMENT! NO COMMENT! ";
+
+    for (custkey = cust_thread->offset + 1; custkey <= nr_customer; custkey ++)
+    {
+        /* Generate C_NAME */
+        sprintf(name, "Customer#%ld", custkey);
+
+        /* Generate C_NATIONKEY */
+        nationkey = rand_within_int(0, 24);
+
+        /* Generate C_PHONE */
+        {
+            int country_code = 10 + rand_within_int(0, 24);
+            int local1 = rand_within_int(100, 999);
+            int local2 = rand_within_int(100, 999);
+            int local3 = rand_within_int(1000, 9999);
+            sprintf(phone, "%d-%d-%d-%d", country_code, local1, local2, local3);
+        }
+
+        /* Generate C_ACCTBAL */
+        acctbal = rand_within_double(-999.99, 9999.99);
+
+        /* Generate C_MKTSEGMENT */
+        mktsegment = c_mktsegment_bag[rand_within_int(0, 4)];
+
+        fprintf(customer_file, "%ld|%s|%s|%d|%s|%.2lf|%s|%s\n",
+                custkey, name, address, nationkey, phone, acctbal, mktsegment, comment);
+    }
 
     return NULL;
 }
