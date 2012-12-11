@@ -1,7 +1,8 @@
 
 AM_CFLAGS = -g -Wall -msse -msse2
-LDFLAGS = -no-undefined
-INCLUDES =
+LDFLAGS = -no-undefined $(GLIB_LIBS)
+INCLUDES = $(GLIB_CFLAGS)
+LIBS += $(GCUTTER_LIBS)
 
 noinst_LTLIBRARIES =							\
 	libuni-dbgen.la

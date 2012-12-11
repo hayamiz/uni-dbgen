@@ -4,6 +4,6 @@
 int
 main(int argc, char **argv)
 {
-    puts("hello world");
+    generate(argc, argv);
     return 0;
 }
