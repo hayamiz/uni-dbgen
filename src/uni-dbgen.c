@@ -6,12 +6,6 @@
 #include <glib.h>
 #include <pthread.h>
 
-
-typedef struct {
-    pthread_t pth;
-    int offset;
-} cust_thread_t;
-
 /* static variables */
 static option_t option;
 
@@ -36,12 +30,9 @@ static void parse_args(gint argc, gchar **argv);
 static int rand_within_int(int from, int to);
 static long rand_within_long(long from, long to);
 
-static void *part_thread_handler(void *arg);
-static void *cust_thread_handler(void *arg);
-
-static void make_orders(long custkey);
-static void make_lineitem(long orderkey);
-
+static void make_part(void);
+static void make_customer(void);
+static void make_orders_lineitem(void);
 
 /* static function bodies */
 static void
@@ -127,8 +118,8 @@ static const char *p_container_syll2[] = {
     "CASE", "BOX_", "BAG_", "JAR_", "PKG_", "PACK", "CAN_", "DRUM"
 };
 
-static void *
-part_thread_handler(void *arg)
+static void
+make_part(void)
 {
     long partkey;
     char name[128];
@@ -182,8 +173,6 @@ part_thread_handler(void *arg)
                 "%ld|%s|%s|%s|%s|%d|%s|%ld|%s\n",
                 partkey, name, mfgr, brand, type, size, container, retailprice, comment);
     }
-
-    return NULL;
 }
 
 
@@ -191,12 +180,11 @@ static char *c_mktsegment_bag[] = {
     "AUTOMOBILE", "BUILDING__", "FURNITURE_", "MACHINERY_", "HOUSHOLD__"
 };
 
-static void *
-cust_thread_handler(void *arg)
+static void
+make_customer(void)
 {
     long custkey;
     long nr_customer = 150000 * option.scalefactor;
-    cust_thread_t *cust_thread = (cust_thread_t *) arg;
 
     char name[64];
     const char *address = "CONSTANT ADDRESS _____________";
@@ -206,7 +194,7 @@ cust_thread_handler(void *arg)
     const char *mktsegment;
     const char *comment = "NO COMMENT! NO COMMENT! NO COMMENT! NO COMMENT! NO COMMENT! NO COMMENT! ";
 
-    for (custkey = cust_thread->offset + 1; custkey <= nr_customer; custkey ++)
+    for (custkey = 1; custkey <= nr_customer; custkey ++)
     {
         /* Generate C_NAME */
         sprintf(name, "Customer#%ld", custkey);
@@ -232,19 +220,92 @@ cust_thread_handler(void *arg)
         fprintf(customer_file, "%ld|%s|%s|%d|%s|%.2lf|%s|%s\n",
                 custkey, name, address, nationkey, phone, acctbal, mktsegment, comment);
     }
-
-    return NULL;
 }
 
+static inline void
+swap(long *val1, long *val2)
+{
+    long tmp;
+    tmp = *val1;
+    *val1 = *val2;
+    *val2 = tmp;
+}
+
+
+static char *o_orderpriority_bag[] = {
+    "1-URGENT", "2-HIGH__", "3-MEDIUM", "4-NOT___", "5-LOW___"
+};
+
+static void
+make_orders_lineitem(void)
+{
+    long custkey;
+    long custidx;
+    long nr_customer = option.scalefactor * 150000;
+    long nr_orders = nr_customer * 10;
+    long *custkeys;
+
+    long orderkey;
+    char orderstatus = 'O';     /* FIXME */
+    double totalprice = 0.0;    /* FIXME */
+    time_t orderdate_epoch;
+    struct tm orderdate_tm;
+    char orderdate[64];
+    const char *orderpriority;
+    char clerk[20];
+    int shippriority = 0;
+    const char *comment = "NO COMMENT! NO COMMENT! NO COMMENT! NO COMMENT!";
+
+    custkeys = malloc(sizeof(long) * nr_orders);
+    for (custidx = 0; custidx <= nr_orders; custidx ++)
+        custkeys[custidx] = custidx % nr_customer + 1;
+
+    /* Shuffling custkeys */
+    for (custidx = 0; custidx < nr_orders - 1; custidx++)
+    {
+        long a = rand_within_long(0, nr_orders - custidx - 1);
+        swap(&custkeys[custidx], &custkeys[custidx + a]);
+    }
+
+    for (custidx = 0; custidx < nr_orders; custidx++)
+    {
+        int i;
+
+        /* O_ORDERKEY */
+        orderkey = custidx + 1;
+
+        /* O_CUSTKEY */
+        custkey = custkeys[custidx];
+
+        /* O_ORDERDATE */
+        orderdate_epoch = rand_within_int(694191600, 902156399);
+        localtime_r(&orderdate_epoch, &orderdate_tm);
+        strftime(orderdate, 63, "%Y-%m-%d", &orderdate_tm);
+
+        /* O_ORDERPRIORITY */
+        orderpriority = o_orderpriority_bag[rand_within_int(0, 4)];
+
+        /* O_CLERK */
+        sprintf(clerk, "Clerk#%09d", rand_within_int(1, option.scalefactor * 1000));
+
+        /* O_SHIPPRIORITY */
+        shippriority = 0;
+
+        for (i = 0; i < 4; i++)
+        {
+            
+        }
+
+        fprintf(orders_file, "%ld|%ld|%c|%lf|%s|%s|%s|%d|%s\n",
+                orderkey, custkey, orderstatus, totalprice, orderdate,
+                orderpriority, clerk, shippriority, comment);
+    }
+}
 
 /* global function bodies */
 
 void generate(gint argc, gchar **argv)
 {
-    int i;
-    pthread_t part_thread;
-    cust_thread_t *cust_threads;
-
     parse_args(argc, argv);
 
     g_print("== settings ==\n");
@@ -252,28 +313,14 @@ void generate(gint argc, gchar **argv)
     g_print(" parallelism  : %d\n", option.parallel);
     g_print(" verbosity    : %s\n", (option.verbose ? "true" : "false"));
 
-    cust_threads = malloc(sizeof(cust_thread_t) * option.parallel);
-
     customer_file = fopen("customer.csv", "w");
     orders_file = fopen("orders.csv", "w");
     lineitem_file = fopen("lineitem.csv", "w");
     part_file = fopen("part.csv", "w");
 
-    pthread_create(&part_thread, NULL, part_thread_handler, NULL);
-
-    for (i = 0; i < option.parallel; i++)
-    {
-        cust_threads[i].offset = i;
-        pthread_create(&cust_threads[i].pth, NULL, cust_thread_handler, &cust_threads[i]);
-    }
-
-    pthread_join(part_thread, NULL);
-    for (i = 0; i < option.parallel; i++)
-    {
-        pthread_join(cust_threads[i].pth, NULL);
-    }
-
-    free(cust_threads);
+    make_part();
+    make_customer();
+    make_orders_lineitem();
 
     fclose(customer_file);
     fclose(orders_file);
